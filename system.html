@@ -1,0 +1,578 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Smart Home — SPA with Voice Assistant</title>
+<style>
+  :root{
+    --bg:#f3f6f9; --card:#ffffff; --muted:#7f8893; --accent:#2b6cff;
+    --shadow: 0 8px 22px rgba(17,24,39,0.06);
+  }
+  *{box-sizing:border-box;font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial}
+  body{margin:0;background:linear-gradient(180deg,#eef3fb,#f8fafc);display:flex;justify-content:center;padding:20px}
+  .app{width:390px;background:var(--card);border-radius:14px;box-shadow:var(--shadow);overflow:hidden}
+  .pane{padding:16px}
+  header{display:flex;align-items:center;justify-content:space-between}
+  header h1{font-size:18px;margin:0}
+  .actions button{background:#f3f6f9;border:none;padding:8px;border-radius:8px;margin-left:6px;cursor:pointer}
+  .greet{margin-top:12px}
+  .greet h2{margin:0;font-size:16px}
+  .greet small{color:var(--muted)}
+  .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-top:14px}
+  .card{background:#fbfdff;border-radius:10px;padding:12px;box-shadow:0 1px 0 rgba(15,23,42,0.03);border:1px solid #eef4fb}
+  .card .title{display:flex;justify-content:space-between;align-items:center}
+  .card .title span{font-weight:700}
+  .control-btn{margin-top:10px;background:#fff;border:1px solid #e6eefc;padding:8px;border-radius:10px;cursor:pointer;width:100%}
+  .toggle{width:46px;height:26px;border-radius:16px;padding:3px;background:#e8eefc;display:inline-flex;align-items:center;position:relative;cursor:pointer}
+  .toggle .knob{width:20px;height:20px;background:#fff;border-radius:50%;box-shadow:0 2px 6px rgba(2,6,23,0.08);transition:transform .18s;transform:translateX(0)}
+  .toggle.on{background:var(--accent)}
+  .toggle.on .knob{transform:translateX(20px)}
+  .scenes{margin-top:18px}
+  .scenes .row{display:flex;gap:10px;margin-top:8px}
+  .scene{flex:1;padding:10px;border-radius:10px;background:#fbfdff;border:1px solid #eef4fb;text-align:center;cursor:pointer}
+  .recent{margin-top:18px}
+  .recent .item{display:flex;justify-content:space-between;padding:10px;border-radius:8px;background:#fbfdff;border:1px solid #eef4fb;margin-top:8px}
+  .bottom-nav{display:flex;justify-content:space-around;align-items:center;padding:12px;border-top:1px solid #eef4fb;background:linear-gradient(180deg,transparent,#fff)}
+  .nav-btn{background:transparent;border:none;cursor:pointer;font-size:18px}
+  .mic-wrap{display:flex;flex-direction:column;align-items:center;gap:8px}
+  .mic-btn{width:60px;height:60px;border-radius:50%;background:linear-gradient(180deg,#fff,#f7f9ff);border:2px solid #eef3fb;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 6px 18px rgba(43,108,255,0.06);font-size:20px}
+  .mic-btn.recording{box-shadow:0 12px 36px rgba(43,108,255,0.18);border-color:var(--accent)}
+  .wave{width:220px;height:48px;border-radius:8px;background:#f3f6fb;border:1px solid #eef3fb;display:block}
+  .status-line{font-size:13px;color:var(--muted);margin-top:6px}
+  .hidden{display:none}
+  .top-tabs{display:flex;gap:6px;margin-top:12px}
+  .tab-btn{padding:8px 10px;border-radius:10px;border:1px solid #eef3fb;background:#fff;cursor:pointer;font-weight:600}
+  .tab-btn.active{border-color:var(--accent);box-shadow:0 6px 14px rgba(43,108,255,0.06)}
+  .control-panel{margin-top:12px}
+  .control-row{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:8px}
+  label{font-size:13px;color:var(--muted)}
+  .slider{width:160px}
+  input[type=range]{-webkit-appearance:none;height:6px;border-radius:8px;background:#eef3fb;outline:none}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:#fff;border:2px solid var(--accent);box-shadow:0 2px 6px rgba(43,108,255,0.12)}
+  .small{font-size:12px;color:var(--muted)}
+  @media (max-width:400px){ .app{width:360px} }
+</style>
+</head>
+<body>
+  <div class="app" role="application" aria-label="Smart Home Panel">
+    <div class="pane" id="homePane" aria-hidden="false">
+      <header>
+        <h1>Smart Home Panel</h1>
+        <div class="actions">
+          <button title="Settings" onclick="showPane('settings')">⚙️</button>
+          <button title="Profile">👤</button>
+        </div>
+      </header>
+
+      <div class="greet">
+        <h2 id="greetName">Hello, Tristan</h2>
+        <div><small class="small">Manage your devices — try voice commands: “Turn on lights”</small></div>
+      </div>
+
+      <div class="top-tabs" style="margin-top:12px">
+        <button class="tab-btn active" id="tab-home" onclick="showPane('home')">Home</button>
+        <button class="tab-btn" id="tab-controls" onclick="showPane('controls')">Controls</button>
+        <button class="tab-btn" id="tab-history" onclick="showPane('history')">History</button>
+        <button class="tab-btn" id="tab-settings" onclick="showPane('settings')">Settings</button>
+      </div>
+
+      <div class="grid" style="margin-top:14px">
+        <div class="card" id="card-lights">
+          <div class="title"><span>💡 Lights</span><div class="toggle" id="lights-toggle" role="switch" aria-checked="true"><div class="knob"></div></div></div>
+          <div class="small" style="margin-top:8px">Brightness: <span id="brightness-label">75</span>%</div>
+          <button class="control-btn" onclick="openControl('lights')">Open Control</button>
+        </div>
+
+        <div class="card" id="card-thermo">
+          <div class="title"><span>🌡 Thermostat</span><div class="small" id="thermo-mode">Auto</div></div>
+          <div style="text-align:center;margin-top:8px;font-weight:800;font-size:20px" id="thermo-temp">72°</div>
+          <button class="control-btn" onclick="openControl('thermo')">Open Control</button>
+        </div>
+
+        <div class="card" id="card-tv">
+          <div class="title"><span>📺 TV</span><div class="toggle" id="tv-toggle" role="switch" aria-checked="false"><div class="knob"></div></div></div>
+          <div class="small" style="margin-top:8px">Volume: <span id="tv-vol">15</span></div>
+          <button class="control-btn" onclick="openControl('tv')">Open Control</button>
+        </div>
+
+        <div class="card" id="card-sec">
+          <div class="title"><span>🛡 Security</span><div class="toggle" id="sec-toggle" role="switch" aria-checked="true"><div class="knob"></div></div></div>
+          <div class="small" style="margin-top:8px">Status: <span id="sec-status">Enabled</span></div>
+          <button class="control-btn" onclick="openControl('security')">Open Control</button>
+        </div>
+      </div>
+
+      <div class="scenes">
+        <h3 style="margin:12px 0 6px 0">Scenes</h3>
+        <div class="row">
+          <div class="scene" onclick="applyScene('Bedtime')">🌙<div class="small">Bedtime</div></div>
+          <div class="scene" onclick="applyScene('Movie')">🎬<div class="small">Movie</div></div>
+          <div class="scene" onclick="applyScene('Dinner')">🍽<div class="small">Dinner</div></div>
+        </div>
+      </div>
+
+      <div class="recent" id="recentList" style="margin-top:16px">
+        <h3 style="margin:0 0 8px 0">Recent Activity</h3>
+      
+      </div>
+    </div>
+
+   
+    <div class="pane hidden" id="controlsPane">
+      <header>
+        <h1>Controls</h1>
+        <div class="actions">
+          <button onclick="showPane('home')">Close</button>
+        </div>
+      </header>
+
+      <div class="control-panel">
+        <div class="control-row">
+          <div>
+            <div style="font-weight:700">Lights</div>
+            <div class="small">Toggle and set brightness</div>
+          </div>
+          <div style="text-align:right">
+            <div class="toggle" id="ctrl-lights-toggle" role="switch"><div class="knob"></div></div>
+            <div style="height:8px"></div>
+            <input type="range" id="ctrl-bright" class="slider" min="0" max="100" value="75">
+          </div>
+        </div>
+
+        <div class="control-row">
+          <div>
+            <div style="font-weight:700">Thermostat</div>
+            <div class="small">Set temperature</div>
+          </div>
+          <div style="text-align:right">
+            <div style="display:flex;gap:8px;align-items:center;justify-content:flex-end">
+              <button onclick="changeThermo(-1)">-</button>
+              <div id="ctrl-temp" style="font-weight:700">72°</div>
+              <button onclick="changeThermo(1)">+</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="control-row">
+          <div>
+            <div style="font-weight:700">TV</div>
+            <div class="small">Power & volume</div>
+          </div>
+          <div style="text-align:right">
+            <div class="toggle" id="ctrl-tv-toggle" role="switch"><div class="knob"></div></div>
+            <div style="height:8px"></div>
+            <div style="display:flex;gap:6px;align-items:center;justify-content:flex-end">
+              <button onclick="changeVol(-1)">-</button>
+              <div id="ctrl-vol">15</div>
+              <button onclick="changeVol(1)">+</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="control-row">
+          <div>
+            <div style="font-weight:700">Security</div>
+            <div class="small">Enable / disable</div>
+          </div>
+          <div style="text-align:right">
+            <div class="toggle" id="ctrl-sec-toggle" role="switch"><div class="knob"></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+
+    <div class="pane hidden" id="historyPane">
+      <header>
+        <h1>History</h1>
+        <div class="actions">
+          <button onclick="showPane('home')">Close</button>
+        </div>
+      </header>
+      <div style="margin-top:12px">
+        <h3 style="margin:0 0 8px 0">Activity Log</h3>
+        <div id="historyList"></div>
+      </div>
+    </div>
+
+
+    <div class="pane hidden" id="settingsPane">
+      <header>
+        <h1>Settings</h1>
+        <div class="actions">
+          <button onclick="showPane('home')">Close</button>
+        </div>
+      </header>
+      <div style="margin-top:12px">
+        <div style="margin-bottom:10px">
+          <label class="small">Assistant voice feedback</label><br>
+          <select id="ttsEnabled">
+            <option value="true">Enabled</option>
+            <option value="false">Disabled</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="small">Microphone sensitivity (confidence threshold)</label>
+          <input type="range" id="sensSlider" min="0" max="100" value="30">
+        </div>
+      </div>
+    </div>
+
+
+    <div class="bottom-nav" role="navigation" aria-label="Bottom Navigation">
+      <button class="nav-btn" title="Home" onclick="showPane('home')">🏠</button>
+      <button class="nav-btn" title="Controls" onclick="showPane('controls')">🎛️</button>
+
+      <div class="mic-wrap" style="align-items:center">
+        <button id="micBtn" class="mic-btn" title="Tap to speak">🎤</button>
+        <canvas id="waveCanvas" class="wave" width="220" height="48" aria-hidden="true"></canvas>
+        <div class="status-line" id="voiceStatus">Voice: idle</div>
+      </div>
+
+      <button class="nav-btn" title="History" onclick="showPane('history')">🕘</button>
+      <button class="nav-btn" title="Settings" onclick="showPane('settings')">⚙️</button>
+    </div>
+  </div>
+
+<script>
+
+const STORAGE_KEY = 'smart_home_state_v1';
+function loadState(){
+  const raw = localStorage.getItem(STORAGE_KEY);
+  if(raw) try { return JSON.parse(raw); } catch(e){ console.warn('loadState parse',e); }
+  return {
+    lights: true,
+    brightness: 75,
+    thermo: 72,
+    tv: false,
+    tvVol: 15,
+    security: true,
+    history: []
+  };
+}
+function saveState(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
+
+
+const state = loadState();
+
+
+const lightsToggle = document.getElementById('lights-toggle');
+const tvToggle = document.getElementById('tv-toggle');
+const secToggle = document.getElementById('sec-toggle');
+const brightnessLabel = document.getElementById('brightness-label');
+const thermoTemp = document.getElementById('thermo-temp');
+const tvVolLabel = document.getElementById('tv-vol');
+const secStatus = document.getElementById('sec-status');
+
+const ctrlLightsToggle = document.getElementById('ctrl-lights-toggle');
+const ctrlBright = document.getElementById('ctrl-bright');
+const ctrlTempLabel = document.getElementById('ctrl-temp');
+const ctrlVolLabel = document.getElementById('ctrl-vol');
+const ctrlTvToggle = document.getElementById('ctrl-tv-toggle');
+const ctrlSecToggle = document.getElementById('ctrl-sec-toggle');
+
+const recentList = document.getElementById('recentList');
+const historyList = document.getElementById('historyList');
+
+const micBtn = document.getElementById('micBtn');
+const waveCanvas = document.getElementById('waveCanvas');
+const voiceStatus = document.getElementById('voiceStatus');
+const ttsEnabled = document.getElementById('ttsEnabled');
+const sensSlider = document.getElementById('sensSlider');
+
+
+function renderAll(){
+  setToggle(lightsToggle, state.lights);
+  setToggle(ctrlLightsToggle, state.lights);
+  brightnessLabel.textContent = state.brightness;
+  ctrlBright.value = state.brightness;
+
+  thermoTemp.textContent = state.thermo + '°';
+  ctrlTempLabel.textContent = state.thermo + '°';
+
+  setToggle(tvToggle, state.tv);
+  setToggle(ctrlTvToggle, state.tv);
+  tvVolLabel.textContent = state.tvVol;
+  ctrlVolLabel.textContent = state.tvVol;
+
+  setToggle(secToggle, state.security);
+  setToggle(ctrlSecToggle, state.security);
+  secStatus.textContent = state.security ? 'Enabled' : 'Disabled';
+
+
+  renderRecent();
+  renderHistory();
+  saveState();
+}
+function setToggle(el,on){ if(on){ el.classList.add('on'); el.setAttribute('aria-checked','true'); } else { el.classList.remove('on'); el.setAttribute('aria-checked','false'); } }
+function addHistory(text){
+  const ts = new Date().toLocaleString();
+  state.history.unshift({text, ts});
+  if(state.history.length > 100) state.history.pop();
+  renderRecent();
+  renderHistory();
+  saveState();
+}
+function renderRecent(){
+  const max = 5;
+  recentList.querySelectorAll('.item').forEach(n=>n.remove());
+  for(let i=0;i<Math.min(state.history.length, max); i++){
+    const it = state.history[i];
+    const div = document.createElement('div');
+    div.className = 'item';
+    div.innerHTML = `<div>${escapeHtml(it.text)}</div><div class="small">${escapeHtml(it.ts)}</div>`;
+    recentList.appendChild(div);
+  }
+  if(state.history.length===0){
+    const p = document.createElement('div');
+    p.className = 'small';
+    p.style.marginTop = '8px';
+    p.textContent = 'No recent activity';
+    recentList.appendChild(p);
+  }
+}
+function renderHistory(){
+  historyList.innerHTML = '';
+  if(state.history.length===0){ historyList.innerHTML = '<div class="small">No history yet</div>'; return; }
+  state.history.forEach(h=>{
+    const el = document.createElement('div');
+    el.className = 'item';
+    el.style.marginTop = '8px';
+    el.innerHTML = `<div>${escapeHtml(h.text)}</div><div class="small">${escapeHtml(h.ts)}</div>`;
+    historyList.appendChild(el);
+  });
+}
+function escapeHtml(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+
+lightsToggle.addEventListener('click', ()=>{ state.lights = !state.lights; renderAll(); speakIfOn('Lights ' + (state.lights ? 'turned on' : 'turned off')); addHistory('Lights ' + (state.lights ? 'turned on' : 'turned off')); });
+ctrlLightsToggle.addEventListener('click', ()=>{ state.lights = !state.lights; renderAll(); speakIfOn('Lights ' + (state.lights ? 'turned on' : 'turned off')); addHistory('Lights ' + (state.lights ? 'turned on' : 'turned off')); });
+
+ctrlBright.addEventListener('input', (e)=>{ state.brightness = +e.target.value; renderAll(); addHistory('Brightness set to ' + state.brightness + '%'); });
+
+function changeThermo(delta){ state.thermo = Math.max(10, Math.min(35, state.thermo + delta)); renderAll(); addHistory('Thermostat set to ' + state.thermo + '°'); speakIfOn('Thermostat set to ' + state.thermo + ' degrees'); }
+function openControl(device){ showPane('controls'); speakIfOn('Opening controls for ' + device); addHistory('Opened control: ' + device); }
+
+document.querySelectorAll('#controlsPane .control-btn').forEach(b=>b?.addEventListener('click', ()=>{})); // placeholder
+
+function changeVol(delta){ state.tvVol = Math.max(0, Math.min(100, state.tvVol + delta)); renderAll(); addHistory('TV volume ' + state.tvVol); }
+ctrlTvToggle.addEventListener('click', ()=>{ state.tv = !state.tv; renderAll(); addHistory('TV ' + (state.tv ? 'turned on' : 'turned off')); speakIfOn('TV ' + (state.tv ? 'turned on' : 'turned off')); });
+tvToggle.addEventListener('click', ()=>{ state.tv = !state.tv; renderAll(); addHistory('TV ' + (state.tv ? 'turned on' : 'turned off')); speakIfOn('TV ' + (state.tv ? 'turned on' : 'turned off')); });
+
+ctrlSecToggle.addEventListener('click', ()=>{ state.security = !state.security; renderAll(); addHistory('Security ' + (state.security ? 'enabled' : 'disabled')); speakIfOn('Security ' + (state.security ? 'enabled' : 'disabled')); });
+secToggle.addEventListener('click', ()=>{ state.security = !state.security; renderAll(); addHistory('Security ' + (state.security ? 'enabled' : 'disabled')); speakIfOn('Security ' + (state.security ? 'enabled' : 'disabled')); });
+
+function applyScene(name){
+  if(name==='Bedtime'){ state.lights = false; state.thermo = 70; state.tv = false; }
+  if(name==='Movie'){ state.lights = false; state.thermo = 72; state.tv = true; }
+  if(name==='Dinner'){ state.lights = true; state.thermo = 73; state.tv = false; }
+  renderAll();
+  addHistory('Scene: ' + name);
+  speakIfOn('Applied scene ' + name);
+}
+
+
+function showPane(name){
+  const panes = { home: 'homePane', controls: 'controlsPane', history: 'historyPane', settings: 'settingsPane' };
+  Object.values(panes).forEach(id => document.getElementById(id).classList.add('hidden'));
+  const activeId = panes[name] || 'homePane';
+  document.getElementById(activeId).classList.remove('hidden');
+
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+  const map = { home: 'tab-home', controls: 'tab-controls', history: 'tab-history', settings: 'tab-settings' };
+  const tb = map[name] || 'tab-home'; document.getElementById(tb).classList.add('active');
+}
+
+
+const canvasCtx = waveCanvas.getContext('2d');
+let recognition = null;
+let audioStream = null;
+let audioCtx = null;
+let analyser = null;
+let rafId = null;
+let listening = false;
+
+
+const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition || null;
+if(SpeechRecognition){
+  recognition = new SpeechRecognition();
+  recognition.lang = 'en-US';
+  recognition.interimResults = false;
+  recognition.continuous = true; // keep listening and receiving results
+  recognition.maxAlternatives = 1;
+
+  recognition.onstart = ()=>{ voiceStatus.textContent = 'Voice: listening...'; micBtn.classList.add('recording'); startWaveform().catch(()=>{}); listening = true; };
+  recognition.onend = ()=>{ voiceStatus.textContent = 'Voice: idle'; micBtn.classList.remove('recording'); stopWaveform(); listening = false; /* keep continuous mode auto-restart */ tryRestartRecognition(); };
+  recognition.onerror = (e)=>{ voiceStatus.textContent = 'Voice: error'; console.warn('Recognition error', e); };
+
+  recognition.onresult = (ev)=>{
+    // iterate through results (but we set continuous)
+    for(let i = ev.resultIndex; i < ev.results.length; i++){
+      const res = ev.results[i];
+      const text = res[0].transcript.trim();
+      const confidence = res[0].confidence || 1.0;
+      console.log('voice heard:', text, 'conf', confidence);
+      const minConf = (+sensSlider.value || 30) / 100;
+      if(confidence < minConf) { console.log('ignored low conf', confidence, '<', minConf); continue; }
+      handleVoiceCommand(text.toLowerCase());
+    }
+  };
+} else {
+  voiceStatus.textContent = 'Voice: not supported (use Chrome/Edge)';
+  micBtn.disabled = true;
+}
+
+let restartTimer = null;
+function tryRestartRecognition(){
+ 
+  if(recognition && listening === false){
+    clearTimeout(restartTimer);
+    restartTimer = setTimeout(()=>{ try{ recognition.start(); }catch(e){ console.warn('restart failed', e); } }, 400);
+  }
+}
+
+
+async function startWaveform(){
+  if(audioStream) return;
+  try{
+    audioStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const source = audioCtx.createMediaStreamSource(audioStream);
+    analyser = audioCtx.createAnalyser();
+    analyser.fftSize = 512;
+    source.connect(analyser);
+    drawWave();
+  }catch(err){ console.warn('getUserMedia error', err); }
+}
+function stopWaveform(){
+  if(rafId) cancelAnimationFrame(rafId);
+  rafId = null;
+  if(analyser){ analyser.disconnect(); analyser = null; }
+  if(audioCtx){ try{ audioCtx.close(); }catch(e){} audioCtx = null; }
+  if(audioStream){ audioStream.getTracks().forEach(t=>t.stop()); audioStream = null; }
+  canvasCtx.clearRect(0,0,waveCanvas.width,waveCanvas.height);
+}
+function drawWave(){
+  if(!analyser) return;
+  const bufferLength = analyser.fftSize;
+  const data = new Uint8Array(bufferLength);
+  analyser.getByteTimeDomainData(data);
+  canvasCtx.fillStyle = '#f3f6fb';
+  canvasCtx.fillRect(0,0,waveCanvas.width,waveCanvas.height);
+
+  canvasCtx.lineWidth = 2;
+  canvasCtx.strokeStyle = 'rgba(43,108,255,0.9)';
+  canvasCtx.beginPath();
+  const sliceWidth = waveCanvas.width / bufferLength;
+  let x = 0;
+  for(let i=0;i<bufferLength;i++){
+    const v = data[i] / 128.0;
+    const y = (v * waveCanvas.height) / 2;
+    if(i===0) canvasCtx.moveTo(x,y);
+    else canvasCtx.lineTo(x,y);
+    x += sliceWidth;
+  }
+  canvasCtx.lineTo(waveCanvas.width, waveCanvas.height/2);
+  canvasCtx.stroke();
+  rafId = requestAnimationFrame(drawWave);
+}
+
+
+micBtn.addEventListener('click', async ()=>{
+  if(!recognition){ alert('SpeechRecognition not supported in this browser. Use Chrome or Edge.'); return; }
+  try{
+    if(!listening){
+     
+      await startWaveform();
+      recognition.start();
+    
+    } else {
+  
+      recognition.stop();
+      stopWaveform();
+      micBtn.classList.remove('recording');
+      voiceStatus.textContent = 'Voice: idle';
+      listening = false;
+    }
+  }catch(err){ console.warn('mic start/stop error', err); voiceStatus.textContent = 'Voice: error'; }
+});
+
+
+function speakIfOn(text){
+  if(ttsEnabled.value === 'true'){
+    speak(text);
+  }
+}
+function speak(text){
+  if('speechSynthesis' in window){
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = 'en-US';
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.speak(u);
+  } else {
+    console.log('TTS:', text);
+  }
+}
+
+
+function handleVoiceCommand(text){
+  addHistory('Heard: ' + text);
+
+  if(text.includes('go to home') || text.includes('open home') || text === 'home'){ showPane('home'); speakIfOn('Opening home'); return; }
+  if(text.includes('go to controls') || text.includes('open controls') || text.includes('controls')){ showPane('controls'); speakIfOn('Opening controls'); return; }
+  if(text.includes('open history') || text.includes('open history') || text.includes('history')){ showPane('history'); speakIfOn('Opening history'); return; }
+  if(text.includes('open settings') || text.includes('settings')){ showPane('settings'); speakIfOn('Opening settings'); return; }
+
+ 
+  if(/turn (on|off) (the )?lights?/.test(text) || text.includes('lights on') || text.includes('lights off')){
+    if(text.includes('on')) state.lights = true;
+    else if(text.includes('off')) state.lights = false;
+    renderAll();
+    addHistory('Lights ' + (state.lights ? 'turned on' : 'turned off'));
+    speakIfOn('Lights ' + (state.lights ? 'turned on' : 'turned off'));
+    return;
+  }
+
+  let m = text.match(/brightness(?: to)? (\\d{1,3})/);
+  if(m){ let v = Math.max(0,Math.min(100, Number(m[1]))); state.brightness = v; renderAll(); addHistory('Brightness set to ' + v + '%'); speakIfOn('Brightness set to ' + v + ' percent'); return; }
+
+
+  m = text.match(/set (?:the )?(?:temperature|thermostat|temp) to (\\d{1,2})/);
+  if(m){ let v = Math.max(10,Math.min(35, Number(m[1]))); state.thermo = v; renderAll(); addHistory('Thermostat set to ' + v + '°'); speakIfOn('Thermostat set to ' + v + ' degrees'); return; }
+  if(text.includes('increase temperature') || text.includes('temperature up') || text.includes('raise thermostat')){ state.thermo = Math.min(35, state.thermo + 1); renderAll(); addHistory('Thermostat increased to ' + state.thermo + '°'); speakIfOn('Temperature increased to ' + state.thermo); return; }
+  if(text.includes('decrease temperature') || text.includes('temperature down') || text.includes('lower thermostat')){ state.thermo = Math.max(10, state.thermo - 1); renderAll(); addHistory('Thermostat decreased to ' + state.thermo + '°'); speakIfOn('Temperature decreased to ' + state.thermo); return; }
+
+
+  if(text.includes('turn on tv') || text.includes('tv on') || text.includes('turn on the tv')){ state.tv = true; renderAll(); addHistory('TV turned on'); speakIfOn('TV turned on'); return; }
+  if(text.includes('turn off tv') || text.includes('tv off') || text.includes('turn off the tv')){ state.tv = false; renderAll(); addHistory('TV turned off'); speakIfOn('TV turned off'); return; }
+  m = text.match(/volume (?:to )?(\\d{1,3})/);
+  if(m){ let v = Math.max(0,Math.min(100, Number(m[1]))); state.tvVol = v; renderAll(); addHistory('TV volume set to ' + v); speakIfOn('TV volume set to ' + v); return; }
+  if(text.includes('volume up') || text.includes('increase volume')){ state.tvVol = Math.min(100, state.tvVol + 1); renderAll(); addHistory('TV volume ' + state.tvVol); speakIfOn('Volume ' + state.tvVol); return; }
+  if(text.includes('volume down') || text.includes('decrease volume')){ state.tvVol = Math.max(0, state.tvVol - 1); renderAll(); addHistory('TV volume ' + state.tvVol); speakIfOn('Volume ' + state.tvVol); return; }
+
+ 
+  if(text.includes('enable security') || text.includes('activate security') || text.includes('security on')){ state.security = true; renderAll(); addHistory('Security enabled'); speakIfOn('Security enabled'); return; }
+  if(text.includes('disable security') || text.includes('deactivate security') || text.includes('security off')){ state.security = false; renderAll(); addHistory('Security disabled'); speakIfOn('Security disabled'); return; }
+
+ 
+  if(text.includes('bedtime') && !text.includes('not')){ applyScene('Bedtime'); return; }
+  if(text.includes('movie') && !text.includes('not')){ applyScene('Movie'); return; }
+  if(text.includes('dinner') && !text.includes('not')){ applyScene('Dinner'); return; }
+
+
+  speakIfOn("Sorry, I didn't understand. Try 'turn on the lights' or 'set thermostat to 72'.");
+}
+
+
+renderAll();
+sensSlider.value = 30;
+ttsEnabled.value = 'true';
+
+/* ensure cleanup on unload */
+window.addEventListener('beforeunload', ()=>{ stopWaveform(); if(recognition) try{ recognition.abort(); }catch(e){} });
+
+</script>
+</body>
+</html>
