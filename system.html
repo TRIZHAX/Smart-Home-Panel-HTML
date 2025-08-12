@@ -408,7 +408,7 @@ if(SpeechRecognition){
   recognition.onerror = (e)=>{ voiceStatus.textContent = 'Voice: error'; console.warn('Recognition error', e); };
 
   recognition.onresult = (ev)=>{
-    // iterate through results (but we set continuous)
+    
     for(let i = ev.resultIndex; i < ev.results.length; i++){
       const res = ev.results[i];
       const text = res[0].transcript.trim();
@@ -570,10 +570,11 @@ renderAll();
 sensSlider.value = 30;
 ttsEnabled.value = 'true';
 
-/* ensure cleanup on unload */
+
 window.addEventListener('beforeunload', ()=>{ stopWaveform(); if(recognition) try{ recognition.abort(); }catch(e){} });
 
 </script>
 </body>
 </html>
+
 
